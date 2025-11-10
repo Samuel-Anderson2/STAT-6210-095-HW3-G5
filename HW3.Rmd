@@ -4,6 +4,8 @@ author: "Sam Anderson"
 Date: "2025-11-10"
 output: html_document
 ---
+GPT Links:
+Sam Anderson: https://chatgpt.com/share/6912471f-dfd4-8004-8334-f795c8e4a471
 
 # 1.- Refactor prior HW2 tasks into functions
 
