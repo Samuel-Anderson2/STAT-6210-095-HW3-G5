@@ -1,0 +1,90 @@
+---
+title: "HW3 - G5"
+author: "Sam Anderson"
+Date: "2025-11-10"
+output: html_document
+---
+
+# 1.- Refactor prior HW2 tasks into functions
+
+### 1.1
+```{r}
+label_by_median <- function(x) {
+  # Check input type
+  if (!is.numeric(x)) {
+    stop("Error: Input must be a numeric vector.")
+  }
+  
+  med <- median(x, na.rm = TRUE)
+  
+  label <- ifelse(
+    is.na(x), NA,
+    ifelse(x >= med, "at_or_above_median", "below_median")
+  )
+  
+  data.frame(value = x, label = label, stringsAsFactors = FALSE)
+}
+```
+
+### 1.2
+```{r}
+even_until <- function(n, k) {
+  evens <- c()
+  for (i in 1:n) {
+    if (i %% 2 == 1) next 
+    if (i %% k == 0) break        
+    evens <- c(evens, i)
+  }
+  return(evens)
+}
+```
+
+### 1.3
+```{r}
+sum_until <- function(thresh, rng = runif) {
+  total <- 0
+  draws <- c()
+  
+  while (total <= thresh) {
+    x <- rng(1)             
+    total <- total + x      
+    draws <- c(draws, x)
+  }
+  
+  return(list(total = total, draws = draws))
+}
+```
+
+### 1.4 
+```{r}
+estimate_pi <- function(n) {
+  inside <- 0
+  for (i in 1:n) {
+    x <- runif(1)
+    y <- runif(1)
+    if (x^2 + y^2 <= 1) {
+      inside <- inside + 1
+    }
+  }
+  pi_hat <- 4 * inside / n
+  return(list(inside = inside, n = n, pi_hat = pi_hat))
+}
+```
+
+### 1.5 
+```{r}
+rw_sim <- function(n = 1000, boundary = 10) {
+  S <- numeric(n)
+  
+  for (t in 2:n) {
+    step <- sample(c(-1, 1), 1)      # random step
+    S[t] <- S[t - 1] + step
+    if (abs(S[t]) > boundary) {
+      return(list(S = S[1:t], stop_time = t))
+    }
+  }
+  
+  return(list(S = S, stop_time = NA))
+}
+```
+
