@@ -355,12 +355,12 @@ display: none;
 </div>
 
 
+<p>GPT Links: Sam Anderson: <a href="https://chatgpt.com/share/6912471f-dfd4-8004-8334-f795c8e4a471" class="uri">https://chatgpt.com/share/6912471f-dfd4-8004-8334-f795c8e4a471</a></p>
 <div id="refactor-prior-hw2-tasks-into-functions" class="section level1">
 <h1>1.- Refactor prior HW2 tasks into functions</h1>
 <div id="section" class="section level3">
 <h3>1.1</h3>
 <pre class="r"><code>label_by_median &lt;- function(x) {
-  # Check input type
   if (!is.numeric(x)) {
     stop(&quot;Error: Input must be a numeric vector.&quot;)
   }
@@ -423,7 +423,7 @@ display: none;
   S &lt;- numeric(n)
   
   for (t in 2:n) {
-    step &lt;- sample(c(-1, 1), 1)      # random step
+    step &lt;- sample(c(-1, 1), 1) 
     S[t] &lt;- S[t - 1] + step
     if (abs(S[t]) &gt; boundary) {
       return(list(S = S[1:t], stop_time = t))
@@ -432,6 +432,45 @@ display: none;
   
   return(list(S = S, stop_time = NA))
 }</code></pre>
+<pre class="r"><code>x&lt;- c(3, 5, 7, 8, 9, NA, 2, 3)
+label_by_median(x)</code></pre>
+<pre><code>##   value              label
+## 1     3       below_median
+## 2     5 at_or_above_median
+## 3     7 at_or_above_median
+## 4     8 at_or_above_median
+## 5     9 at_or_above_median
+## 6    NA               &lt;NA&gt;
+## 7     2       below_median
+## 8     3       below_median</code></pre>
+<pre class="r"><code>even_until(10, 8)</code></pre>
+<pre><code>## [1] 2 4 6</code></pre>
+<pre class="r"><code>sum_until(10)</code></pre>
+<pre><code>## $total
+## [1] 10.23263
+## 
+## $draws
+##  [1] 0.46714352 0.74220151 0.98268448 0.45942683 0.53196563 0.73875440
+##  [7] 0.72443034 0.46532952 0.16899844 0.29121986 0.85757756 0.74116226
+## [13] 0.24562475 0.28101973 0.05385033 0.76870220 0.36526050 0.84501829
+## [19] 0.50226169</code></pre>
+<pre class="r"><code>estimate_pi(x)</code></pre>
+<pre><code>## Warning in 1:n: numerical expression has 8 elements: only the first used</code></pre>
+<pre><code>## $inside
+## [1] 2
+## 
+## $n
+## [1]  3  5  7  8  9 NA  2  3
+## 
+## $pi_hat
+## [1] 2.6666667 1.6000000 1.1428571 1.0000000 0.8888889        NA 4.0000000
+## [8] 2.6666667</code></pre>
+<pre class="r"><code>rw_sim(100, 5)</code></pre>
+<pre><code>## $S
+##  [1] 0 1 2 1 2 3 4 5 4 3 2 3 4 5 6
+## 
+## $stop_time
+## [1] 15</code></pre>
 </div>
 </div>
 
