@@ -12,7 +12,6 @@ Sam Anderson: https://chatgpt.com/share/6912471f-dfd4-8004-8334-f795c8e4a471
 ### 1.1
 ```{r}
 label_by_median <- function(x) {
-  # Check input type
   if (!is.numeric(x)) {
     stop("Error: Input must be a numeric vector.")
   }
@@ -79,7 +78,7 @@ rw_sim <- function(n = 1000, boundary = 10) {
   S <- numeric(n)
   
   for (t in 2:n) {
-    step <- sample(c(-1, 1), 1)      # random step
+    step <- sample(c(-1, 1), 1) 
     S[t] <- S[t - 1] + step
     if (abs(S[t]) > boundary) {
       return(list(S = S[1:t], stop_time = t))
@@ -88,5 +87,14 @@ rw_sim <- function(n = 1000, boundary = 10) {
   
   return(list(S = S, stop_time = NA))
 }
+```
+
+```{r}
+x<- c(3, 5, 7, 8, 9, NA, 2, 3)
+label_by_median(x)
+even_until(10, 8)
+sum_until(10)
+estimate_pi(x)
+rw_sim(100, 5)
 ```
 
