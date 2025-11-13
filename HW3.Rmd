@@ -1,6 +1,6 @@
 ---
 title: "HW3 - G5"
-author: "Sam Anderson"
+author: "Sam Anderson, Cooper Niebuhr"
 Date: "2025-11-10"
 output: html_document
 ---
@@ -88,3 +88,252 @@ rw_sim <- function(n = 1000, boundary = 10) {
 }
 ```
 
+
+# 2. - Alternative Functions
+
+### 2.1 - Threshold Labeling with Custom Statistic
+```{r}
+
+label_by_stat <- function(z, stat = median) {
+  # 1. Compute the threshold by applying the stat function to the vector z
+  threshold <- stat(z)
+  
+  # 2. Return a logical vector comparing each element of z to the threshold
+  return(z >= threshold)
+}
+
+
+# --- 1. Set up sample data ---
+# We'll use a vector that is slightly skewed
+# so that mean and median give different results.
+z_demo <- c(10, 2, 5, 20, 15, 30, 8, 9, 100, 1)
+
+# Sorted data: 1, 2, 5, 8, 9, 10, 15, 20, 30, 100
+print(paste("Sample data (z_demo):", toString(z_demo)))
+
+
+# --- 2. Demonstration with default (stat = median) ---
+# The default stat is median.
+# Median of z_demo is (9 + 10) / 2 = 9.5
+print(label_by_stat(z_demo))
+# Expected: z_demo >= 9.5
+# [1]  TRUE FALSE FALSE  TRUE  TRUE  TRUE FALSE FALSE  TRUE FALSE
+
+
+# --- 3. Demonstration with stat = mean ---
+# The mean of z_demo is (10+2+5+20+15+30+8+9+100+1) / 10 = 20.
+print(label_by_stat(z_demo, stat = mean))
+# Expected: z_demo >= 20
+# [1] FALSE FALSE FALSE  TRUE FALSE  TRUE FALSE FALSE  TRUE FALSE
+
+
+# --- 4. Demonstration with custom 75th percentile function ---
+
+# First, define the custom function as requested.
+# We use quantile() and set names = FALSE to get a clean numeric value.
+q75 <- function(x) {
+  quantile(x, probs = 0.75, names = FALSE)
+}
+
+# The 75th percentile of z_demo is 16.25
+print(label_by_stat(z_demo, stat = q75))
+# Expected: z_demo >= 16.25
+# [1] FALSE FALSE FALSE  TRUE FALSE  TRUE FALSE FALSE  TRUE FALSE
+
+```
+
+### 2.2 - Generalized Accumulator with Stop Rule
+
+```{r}
+
+accumulate_until <- function(step_fun, stop_rule) {
+  total <- 0
+  iters <- 0
+  trace <- c() 
+  
+  # Loop *while* the stop rule is NOT met (is FALSE)
+  # We check the rule before adding the next increment.
+  while (!stop_rule(total)) {
+    increment <- step_fun()
+    
+    total <- total + increment
+    
+    trace <- c(trace, total)
+    
+    iters <- iters + 1
+  }
+  
+  return(list(
+    total = total,
+    iters = iters,
+    trace = trace
+  ))
+}
+
+# --- 1. Set a seed for reproducible results ---
+set.seed(42)
+
+# --- 2. Define the step and stop functions ---
+
+# Step function: Draw one random number from a uniform distribution (0 to 1)
+uniform_step <- function() {
+  runif(1)
+}
+
+# Stop rule: Stop when the total is greater than or equal to 6
+stop_at_6 <- function(total) {
+  return(total >= 6)
+}
+
+# --- 3. Run the simulation ---
+simulation_result <- accumulate_until(
+  step_fun = uniform_step,
+  stop_rule = stop_at_6
+)
+
+# --- 4. Print the results ---
+print("--- Uniform Sum Simulation (Threshold 6) ---")
+print(simulation_result)
+
+```
+
+###2.3 - Random Walk with Reflecting Boundaries
+
+```{r}
+
+library(ggplot2)
+library(tidyr) 
+
+simulate_bacteria <- function(N = 20, T_max = 150, a = 0, b = 2, move = FALSE,
+                              food_radius = 3, init_range = 9) {
+  
+  # 1. Initialize data structures
+  traj <- array(NA, 
+                dim = c(T_max + 1, N, 2), 
+                dimnames = list(paste0("t", 0:T_max), 
+                                paste0("bact", 1:N), 
+                                c("x", "y")))
+  
+  # 2. Set initial positions (t=0)
+  traj[1, , "x"] <- runif(N, -init_range, init_range)
+  traj[1, , "y"] <- runif(N, -init_range, init_range)
+  
+  # 3. is_active tracks which bacteria are still moving
+  is_active <- rep(TRUE, N)
+  
+  # --- 4. Run Simulation Loop ---
+  for (t in 1:T_max) {
+    active_indices <- which(is_active)
+    
+    if (length(active_indices) == 0) {
+      for (t_fill in (t + 1):(T_max + 1)) {
+        traj[t_fill, , ] <- traj[t, , ]
+      }
+      break 
+    }
+    
+    current_x <- traj[t, active_indices, "x"]
+    current_y <- traj[t, active_indices, "y"]
+    
+    n_active <- length(active_indices)
+    S_t <- runif(n_active, a, b)
+    delta_t <- runif(n_active, 0, 2 * pi)
+    
+    new_x <- current_x + S_t * cos(delta_t)
+    new_y <- current_y + S_t * sin(delta_t)
+    
+    traj[t + 1, active_indices, "x"] <- new_x
+    traj[t + 1, active_indices, "y"] <- new_y
+    
+
+    inactive_indices <- which(!is_active)
+    if (length(inactive_indices) > 0) {
+      traj[t + 1, inactive_indices, "x"] <- traj[t, inactive_indices, "x"]
+      traj[t + 1, inactive_indices, "y"] <- traj[t, inactive_indices, "y"]
+    }
+    
+    # --- 5. Update Active Status (The Stop Rule) ---
+    if (move == FALSE) {
+      dist_from_center <- sqrt(new_x^2 + new_y^2)
+      
+      found_food <- (dist_from_center <= food_radius)
+      
+      global_indices_to_stop <- active_indices[found_food]
+      
+      is_active[global_indices_to_stop] <- FALSE
+    }
+  }
+  
+  # 6. Prepare and return results
+  final_pos <- traj[T_max + 1, , ]
+  
+  return(list(
+    trajectories = traj,
+    final_positions = final_pos
+  ))
+}
+
+# --- 1. Run the simulation (with default move=FALSE) ---
+set.seed(123) # For reproducible results
+sim_results <- simulate_bacteria(N = 20, T_max = 150, move = FALSE)
+
+# --- 2. Prepare data for ggplot ---
+
+# Convert the 3D 'trajectories' array into a 2D data frame
+traj_array <- sim_results$trajectories
+traj_df <- as.data.frame.table(traj_array, responseName = "value")
+colnames(traj_df) <- c("time_step", "bacterium", "coord", "value")
+
+# Pivot to get x and y in separate columns
+plot_df <- pivot_wider(traj_df, 
+                       names_from = coord, 
+                       values_from = value)
+
+# Convert time from a factor (e.g., "t0") to a number for plotting order
+plot_df$time_num <- as.numeric(gsub("t", "", plot_df$time_step))
+
+# --- 3. Create the food circle data ---
+food_circle <- data.frame(
+  angle = seq(0, 2 * pi, length.out = 100)
+)
+food_circle$x <- 3 * cos(food_circle$angle)
+food_circle$y <- 3 * sin(food_circle$angle)
+
+# --- 4. Create the plot ---
+ggplot(plot_df, aes(x = x, y = y, color = bacterium)) +
+  
+  # Add the food circle (in blue)
+  geom_path(data = food_circle, 
+            aes(x = x, y = y), 
+            color = "blue", 
+            size = 1.2, 
+            inherit.aes = FALSE) +
+  
+  # Add the bacteria trajectories
+  geom_path(aes(group = bacterium), alpha = 0.6) +
+  
+  # Add final positions (as black-outlined points)
+  geom_point(data = as.data.frame(sim_results$final_positions),
+             aes(x = x, y = y), 
+             color = "black", 
+             shape = 21, # Circle with outline
+             fill = "white",
+             size = 2, 
+             stroke = 1.1,
+             inherit.aes = FALSE) +
+  
+  # Make the plot square
+  coord_fixed(xlim = c(-15, 15), ylim = c(-15, 15)) +
+  
+  labs(
+    title = "Bacteria Run-and-Tumble (Stop on Entry)",
+    x = "X Position",
+    y = "Y Position",
+    caption = "Each bacterium stops at its first position inside the blue food circle."
+  ) +
+  theme_minimal() +
+  
+  # Hide the legend (it's too crowded with 20 colors)
+  theme(legend.position = "none")
+
+```
