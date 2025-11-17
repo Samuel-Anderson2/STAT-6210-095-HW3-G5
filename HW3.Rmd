@@ -346,60 +346,182 @@ ggplot(plot_df, aes(x = x, y = y, color = bacterium)) +
 
 ```
 
+### 3
 
-#' Fit all distinct models of a given size k
-#'
-#' @param X A data frame or matrix of predictor variables
-#' @param y A binary response vector
-#' @param k Number of predictors in each model
-#' @param m Maximum number of distinct models to return
-#' @return A data frame with columns: vars, aic, coef, pvals
-#' @export
-fit_models_dim <- function(X, y, k, m = 90) {
-  all_vars <- colnames(X)
-  p <- length(all_vars)
-  
-  if (k > p) stop("k cannot be greater than number of predictors")
-  
-  all_combs <- combn(all_vars, k, simplify = FALSE)
-  n_combs <- length(all_combs)
-  
-  if (n_combs > m) {
-    sampled_indices <- sample(1:n_combs, m, replace = FALSE)
-    all_combs <- all_combs[sampled_indices]
+```{r, echo=FALSE}
+library(tidyverse)
+
+#------------------------------------------------------------
+# 1. fit_models_dim()
+#------------------------------------------------------------
+fit_models_dim <- function(X, y, k, m) {
+  vars <- colnames(X)
+  combos <- combn(vars, k, simplify = FALSE)
+
+  if (length(combos) > m) {
+    combos <- combos[1:m]
   }
-  
-  results_list <- list()
-  
-  for (i in seq_along(all_combs)) {
-    vars <- all_combs[[i]]
-    formula_str <- paste("y ~", paste(vars, collapse = " + "))
-    formula_obj <- as.formula(formula_str)
-    
-    tryCatch({
-      fit <- glm(formula_obj, data = data.frame(y = y, X), family = binomial)
-      model_aic <- AIC(fit)
-      model_coef <- coef(fit)
-      model_pvals <- summary(fit)$coefficients[, 4]
-      
-      results_list[[i]] <- data.frame(
-        vars = I(list(vars)),
-        aic = model_aic,
-        coef = I(list(model_coef)),
-        pvals = I(list(model_pvals)),
-        stringsAsFactors = FALSE
-      )
-    }, error = function(e) NULL)
-  }
-  
-  if (length(results_list) > 0) {
-    results_df <- do.call(rbind, results_list)
-    results_df <- results_df[!duplicated(results_df$vars), ]
-    return(results_df)
-  } else {
-    return(data.frame(vars = list(), aic = numeric(), coef = list(), pvals = list()))
-  }
+
+  results <- map_df(combos, function(vs) {
+    df <- data.frame(y = y, X[, vs, drop = FALSE])
+    fit <- glm(y ~ ., data = df, family = binomial())
+
+    tibble(
+      vars  = list(vs),
+      aic   = AIC(fit),
+      coef  = list(coef(fit)),
+      pvals = list(summary(fit)$coefficients[,4])
+    )
+  })
+
+  return(results)
 }
+
+#------------------------------------------------------------
+# 2. select_best()
+#------------------------------------------------------------
+select_best <- function(models_df, alpha = 0.5) {
+  stopifnot(alpha > 0, alpha <= 1)
+  n_keep <- ceiling(nrow(models_df) * alpha)
+
+  models_df %>%
+    arrange(aic) %>%
+    slice(1:n_keep)
+}
+
+#------------------------------------------------------------
+# 3. grow_from()
+#------------------------------------------------------------
+grow_from <- function(best_df, all_vars, k_next, m) {
+  new_models <- list()
+
+  for (i in seq_len(nrow(best_df))) {
+    base_vars <- unlist(best_df$vars[[i]])
+    remaining <- setdiff(all_vars, base_vars)
+
+    for (v in remaining) {
+      new_set <- sort(c(base_vars, v))
+      new_models <- append(new_models, list(new_set))
+    }
+  }
+
+  uniq <- unique(lapply(new_models, paste, collapse = "|"))
+  new_models <- lapply(uniq, function(s) strsplit(s, "\\|")[[1]])
+
+  if (length(new_models) > m) {
+    new_models <- new_models[1:m]
+  }
+
+  tibble(vars = new_models)
+}
+
+#------------------------------------------------------------
+# 4. run_rashomon()
+#------------------------------------------------------------
+run_rashomon <- function(X, y, pmax = 5, m = 90, alpha = 0.5) {
+  vars <- colnames(X)
+  M <- list()
+
+  # ----- k = 1 -----
+  M[[1]] <- fit_models_dim(X, y, k = 1, m = m) %>%
+    select_best(alpha = alpha)
+
+  # ----- k = 2..pmax -----
+  for (k in 2:pmax) {
+    grown <- grow_from(M[[k - 1]], vars, k_next = k, m = m)
+
+    models_k <- map_df(grown$vars, function(vs) {
+      df <- data.frame(y = y, X[, vs, drop = FALSE])
+      fit <- glm(y ~ ., data = df, family = binomial())
+
+      tibble(
+        vars  = list(vs),
+        aic   = AIC(fit),
+        coef  = list(coef(fit)),
+        pvals = list(summary(fit)$coefficients[,4])
+      )
+    })
+
+    M[[k]] <- select_best(models_k, alpha = alpha)
+  }
+
+  # ----- Summary tables -----
+  predictor_counts <- map_df(seq_along(M), function(k) {
+    tibble(
+      dimension = k,
+      predictor = unlist(M[[k]]$vars)
+    )
+  }) %>%
+    count(dimension, predictor, name = "count")
+
+  aic_summary <- map_df(seq_along(M), function(k) {
+    tibble(
+      dimension = k,
+      aic = M[[k]]$aic
+    )
+  })
+
+  return(list(
+    M = M,
+    predictor_counts = predictor_counts,
+    aic_summary = aic_summary
+  ))
+}
+
+```
+
+```{r}
+# Load cleaned dataset
+adult <- read.csv("adult.csv", sep = ";", stringsAsFactors = FALSE)
+
+# Use sex as binary response
+y <- ifelse(adult$sex == "Male", 1, 0)
+
+# Select 5 numeric predictors for Rashomon search
+X <- adult[, c("age",
+               "education.num",
+               "capital.gain",
+               "capital.loss",
+               "hours.per.week")]
+```
+
+```{r, warning=FALSE}
+# Example: using first 5 predictors to keep runtime small
+X_sub <- X[, 1:5]
+y_sub <- y
+
+res <- run_rashomon(X_sub, y_sub, pmax = 3, m = 20, alpha = 0.5)
+
+```
+
+```{r, echo=FALSE}
+res$M
+```
+
+```{r}
+ggplot(res$predictor_counts,
+       aes(x = predictor, y = count, fill = factor(dimension))) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Predictor Inclusion Counts by Model Dimension",
+    x = "Predictor",
+    y = "Count",
+    fill = "Dimension"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(res$aic_summary, aes(x = factor(dimension), y = aic)) +
+  geom_boxplot() +
+  labs(
+    title = "AIC Distribution by Model Dimension",
+    x = "Model Dimension (k)",
+    y = "AIC"
+  ) +
+  theme_minimal()
+```
+
 #' Select the top alpha% of models by AIC
 #'
 #' @param models_df A data frame from fit_models_dim()
