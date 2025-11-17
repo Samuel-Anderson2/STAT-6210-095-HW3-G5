@@ -346,3 +346,61 @@ ggplot(plot_df, aes(x = x, y = y, color = bacterium)) +
 
 ```
 
+
+#' Fit all distinct models of a given size k
+#'
+#' @param X A data frame or matrix of predictor variables
+#' @param y A binary response vector
+#' @param k Number of predictors in each model
+#' @param m Maximum number of distinct models to return
+#' @return A data frame with columns: vars, aic, coef, pvals
+#' @export
+fit_models_dim <- function(X, y, k, m = 90) {
+  all_vars <- colnames(X)
+  p <- length(all_vars)
+  
+  if (k > p) stop("k cannot be greater than number of predictors")
+  
+  all_combs <- combn(all_vars, k, simplify = FALSE)
+  n_combs <- length(all_combs)
+  
+  if (n_combs > m) {
+    sampled_indices <- sample(1:n_combs, m, replace = FALSE)
+    all_combs <- all_combs[sampled_indices]
+  }
+  
+  results_list <- list()
+  
+  for (i in seq_along(all_combs)) {
+    vars <- all_combs[[i]]
+    formula_str <- paste("y ~", paste(vars, collapse = " + "))
+    formula_obj <- as.formula(formula_str)
+    
+    tryCatch({
+      fit <- glm(formula_obj, data = data.frame(y = y, X), family = binomial)
+      model_aic <- AIC(fit)
+      model_coef <- coef(fit)
+      model_pvals <- summary(fit)$coefficients[, 4]
+      
+      results_list[[i]] <- data.frame(
+        vars = I(list(vars)),
+        aic = model_aic,
+        coef = I(list(model_coef)),
+        pvals = I(list(model_pvals)),
+        stringsAsFactors = FALSE
+      )
+    }, error = function(e) NULL)
+  }
+  
+  if (length(results_list) > 0) {
+    results_df <- do.call(rbind, results_list)
+    results_df <- results_df[!duplicated(results_df$vars), ]
+    return(results_df)
+  } else {
+    return(data.frame(vars = list(), aic = numeric(), coef = list(), pvals = list()))
+  }
+}
+#' Select the top alpha% of models by AIC
+#'
+#' @param models_df A data frame from fit_models_dim()
+#' @param alpha Proportion of best mod
