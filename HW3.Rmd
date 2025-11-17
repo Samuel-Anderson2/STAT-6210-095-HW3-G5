@@ -521,8 +521,3 @@ ggplot(res$aic_summary, aes(x = factor(dimension), y = aic)) +
   ) +
   theme_minimal()
 ```
-
-#' Select the top alpha% of models by AIC
-#'
-#' @param models_df A data frame from fit_models_dim()
-#' @param alpha Proportion of best mod
