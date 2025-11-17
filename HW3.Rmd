@@ -1,6 +1,6 @@
 ---
 title: "HW3 - G5"
-author: "Sam Anderson, Cooper Niebuhr"
+author: "Sam Anderson, Cooper Niebuhr, Janset Aksoy"
 Date: "2025-11-10"
 output: html_document
 ---
